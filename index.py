@@ -33,11 +33,11 @@ def getdata():
     audio_values = model.generate(**inputs, max_new_tokens=256)
 
     sampling_rate = model.config.audio_encoder.sampling_rate
-    scipy.io.wavfile.write("ding.wav", rate=sampling_rate, data=audio_values[0, 0].numpy())
+    scipy.io.wavfile.write(f"{prompt}.wav", rate=sampling_rate, data=audio_values[0, 0].numpy())
 
     # wav_file_path = f"{prompt}.wav".replace(" ", "_")
     # wav_file_path += randint(1, 100)
-    return send_file("ding.wav", as_attachment=True)
+    return send_file(f"{prompt}.wav", as_attachment=True)
 
 
 # @app.route('/text_to_image', methods=['POST'])
