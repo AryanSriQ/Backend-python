@@ -2,18 +2,32 @@ from flask import request, Flask, send_file
 from flask_cors import CORS
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 import scipy
-import requests
-import torch
-from diffusers import AutoPipelineForText2Image
-import io
-from PIL import Image
+import os
+from dotenv import find_dotenv, load_dotenv
+import pymongo
+import random
+import gridfs
 
-# from random import randint
-
-app = Flask(__name__)
-CORS(app)
+load_dotenv(find_dotenv())
+MONGODB_URL = os.getenv("MONGODB_URL")
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
 API_URL = "https://api-inference.huggingface.co/models/warp-ai/wuerstchen"
-headers = {"Authorization": "Bearer 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"}
+headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+app = Flask(__name__)
+
+CORS(app, supports_credentials=True)
+
+
+def mongo_conn():
+    try:
+        conn_str = f"{MONGODB_URL}"
+        client = pymongo.MongoClient(conn_str)
+        return client
+    except Exception as e:
+        print(e)
+
+
+client = mongo_conn()
 
 
 @app.route('/text_to_music', methods=['POST'])
@@ -30,43 +44,32 @@ def getdata():
         return_tensors="pt",
     )
 
+    random_suffix = random.randint(1, 100000)
+    wav_filename = f"{prompt}_{random_suffix}.wav"
+    wav_filename = wav_filename.replace(" ", "_")
+
+    print(wav_filename)
+
     audio_values = model.generate(**inputs, max_new_tokens=256)
-
     sampling_rate = model.config.audio_encoder.sampling_rate
-    scipy.io.wavfile.write(f"{prompt}.wav", rate=sampling_rate, data=audio_values[0, 0].numpy())
 
-    # wav_file_path = f"{prompt}.wav".replace(" ", "_")
-    # wav_file_path += randint(1, 100)
-    return send_file(f"{prompt}.wav", as_attachment=True)
+    scipy.io.wavfile.write(wav_filename, rate=sampling_rate, data=audio_values[0, 0].numpy())
 
+    db = client.music
+    fs = gridfs.GridFS(db)
 
-# @app.route('/text_to_image', methods=['POST'])
-# def query():
-#     device = "cuda"
-#     dtype = torch.float16
-#
-#     pipeline = AutoPipelineForText2Image.from_pretrained(
-#         "warp-diffusion/wuerstchen", torch_dtype=dtype
-#     ).to(device)
-#
-#     caption = "Anthropomorphic cat dressed as a fire fighter"
-#
-#     output = pipeline(
-#         prompt=caption,
-#         height=1024,
-#         width=1024,
-#         prior_guidance_scale=4.0,
-#         decoder_guidance_scale=0.0,
-#     ).images
-#
-#     return output
-    # payload = request.get_json()
-    # response = requests.post(API_URL, headers=headers, json=payload)
-    # print(response.content)
-    # return response.content
+    with open(wav_filename, "rb") as filedata:
+        fs.put(filedata, filename=wav_filename)
 
+    print("file uploaded")
 
-# query()
+    saved_file = fs.get_last_version(filename=wav_filename)
+
+    if saved_file:
+        return send_file(saved_file, mimetype='audio/wav')
+    else:
+        return "File not found", 404
+
 
 if __name__ == "__main__":
     app.run()

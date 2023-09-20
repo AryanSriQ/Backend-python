@@ -10,3 +10,6 @@ chainlit
 scipy
 flask
 flask_cors
+python-dotenv
+pymongo
+flask-PyMongo=2.3.0
