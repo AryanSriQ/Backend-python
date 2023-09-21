@@ -1,6 +1,7 @@
-from flask import request, Flask, send_file
+from flask import request, Flask, send_file, jsonify
 from flask_cors import CORS
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
+from diffusers import DiffusionPipeline
 import scipy
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -11,11 +12,10 @@ import gridfs
 load_dotenv(find_dotenv())
 MONGODB_URL = os.getenv("MONGODB_URL")
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
-API_URL = "https://api-inference.huggingface.co/models/warp-ai/wuerstchen"
 headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
 app = Flask(__name__)
 
-CORS(app, supports_credentials=True)
+CORS(app)
 
 
 def mongo_conn():
@@ -71,5 +71,46 @@ def getdata():
         return "File not found", 404
 
 
+@app.route('/text_to_image', methods=['POST'])
+def text_to_image():
+    data = request.get_json()
+    prompt = data.get('prompt')
+
+    pipeline = DiffusionPipeline.from_pretrained("Envvi/Inkpunk-Diffusion")
+    img = pipeline(prompt).images[0]
+
+    random_suffix = random.randint(1, 100000)
+    img_filename = f"{prompt}_{random_suffix}.wav"
+    img_filename = img_filename.replace(" ", "_")
+
+    db = client["image"]
+    fs = gridfs.GridFS(db)
+
+    image_id = fs.put(img, filename=f"{img_filename}.png")
+
+    return jsonify({"image_id": str(image_id)})
+
+
+@app.route('/get_image/<image_id>', methods=['GET'])
+def get_image(image_id):
+    try:
+        db = client["image"]  # Use the same database name where you stored the image
+        fs = gridfs.GridFS(db)
+        image = fs.get(image_id)
+
+        if image:
+            # Set the response headers to indicate the image content type
+            response_headers = {
+                'Content-Type': 'image/png',  # Adjust content type as needed
+                'Content-Disposition': f'attachment; filename={image.filename}'
+            }
+            return send_file(image, as_attachment=True, download_name=image.filename, headers=response_headers)
+        else:
+            return "Image not found", 404
+    except Exception as e:
+        print("Error:", str(e))
+        return "Internal Server Error", 500
+
+
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
