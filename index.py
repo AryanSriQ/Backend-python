@@ -87,7 +87,10 @@ def text_to_image():
     db = client["image"]
     fs = gridfs.GridFS(db)
 
-    image_id = fs.put(img, filename=f"{img_filename}.png")
+    with open(img_filename, "rb") as filedata:
+        image_id = fs.put(filedata, filename=img_filename)
+
+    # image_id = fs.put(img, filename=f"{img_filename}.png")
 
     return jsonify({"image_id": str(image_id)})
 
@@ -121,8 +124,8 @@ def get_translation():
     from_lang = data.get('fromLanguage')
     to_lang = data.get('toLanguage')
 
-    tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
-    model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-base")
+    tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-large")
+    model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-large")
 
     input_text = f"translate from {from_lang} to {to_lang}: {prompt}"
     input_ids = tokenizer(input_text, return_tensors="pt").input_ids
