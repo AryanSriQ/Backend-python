@@ -16,3 +16,4 @@ flask-PyMongo=2.3.0
 diffusers~=0.21.1
 requests~=2.31.0
 Pillow~=9.5.0
+cohere~=4.27

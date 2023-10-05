@@ -9,11 +9,10 @@ import pymongo
 import random
 import gridfs
 import re
+import cohere
 
 load_dotenv(find_dotenv())
 MONGODB_URL = os.getenv("MONGODB_URL")
-HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
-headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
 app = Flask(__name__)
 
 CORS(app)
@@ -35,6 +34,8 @@ client = mongo_conn()
 def getdata():
     data = request.get_json()
     prompt = data.get('prompt')
+    time = data.get('time')
+    print("time: ", time)
 
     processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
     model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
@@ -51,7 +52,7 @@ def getdata():
 
     print(wav_filename)
 
-    audio_values = model.generate(**inputs, max_new_tokens=256)
+    audio_values = model.generate(**inputs, max_new_tokens=time)
     sampling_rate = model.config.audio_encoder.sampling_rate
 
     scipy.io.wavfile.write(wav_filename, rate=sampling_rate, data=audio_values[0, 0].numpy())
@@ -72,48 +73,21 @@ def getdata():
         return "File not found", 404
 
 
-@app.route('/text_to_image', methods=['POST'])
-def text_to_image():
-    data = request.get_json()
-    prompt = data.get('prompt')
-
-    pipeline = DiffusionPipeline.from_pretrained("Envvi/Inkpunk-Diffusion")
-    img = pipeline(prompt).images[0]
-
-    random_suffix = random.randint(1, 100000)
-    img_filename = f"{prompt}_{random_suffix}.wav"
-    img_filename = img_filename.replace(" ", "_")
-
-    db = client["image"]
-    fs = gridfs.GridFS(db)
-
-    with open(img_filename, "rb") as filedata:
-        image_id = fs.put(filedata, filename=img_filename)
-
-    # image_id = fs.put(img, filename=f"{img_filename}.png")
-
-    return jsonify({"image_id": str(image_id)})
-
-
-@app.route('/get_image/<image_id>', methods=['GET'])
-def get_image(image_id):
-    try:
-        db = client["image"]  # Use the same database name where you stored the image
-        fs = gridfs.GridFS(db)
-        image = fs.get(image_id)
-
-        if image:
-            # Set the response headers to indicate the image content type
-            response_headers = {
-                'Content-Type': 'image/png',  # Adjust content type as needed
-                'Content-Disposition': f'attachment; filename={image.filename}'
-            }
-            return send_file(image, as_attachment=True, download_name=image.filename, headers=response_headers)
-        else:
-            return "Image not found", 404
-    except Exception as e:
-        print("Error:", str(e))
-        return "Internal Server Error", 500
+@app.route('/prompt_to_text', methods=['POST'])
+def post_data():
+    req = request.get_json()
+    prompt = req.get('prompt')
+    co = cohere.Client('sDeY1e2YtCt3XOdGOxZgDecF2H9I108rwdLy6Emw')
+    response = co.generate(
+        model='e6366bc6-735b-4654-a319-5d4dd1fea947-ft',
+        prompt=prompt,
+        max_tokens=300)
+    print(response)
+    gen = 'Prediction: {}'.format(response.generations[0].text)
+    response_data = {
+        'output': gen
+    }
+    return jsonify(response_data)
 
 
 @app.route('/translate', methods=['POST'])
