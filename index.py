@@ -11,6 +11,7 @@ import gridfs
 import re
 import cohere
 from bson import ObjectId
+import json
 
 load_dotenv(find_dotenv())
 MONGODB_URL = os.getenv("MONGODB_URL")
@@ -94,8 +95,11 @@ def all_music():
 
         # Prepare a list of file URLs
         file_urls = [str(file._id) for file in output]
+        file_names = [str(file.filename) for file in output]
 
-        return jsonify(file_urls)  # Send the list of file URLs to the frontend
+        data = [{"id": url, "name": name} for url, name in zip(file_urls, file_names)]
+
+        return jsonify(data)
     except Exception as e:
         return str(e), 500
 
