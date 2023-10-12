@@ -1,7 +1,6 @@
 from flask import request, Flask, send_file, jsonify
 from flask_cors import CORS
-from transformers import AutoProcessor, MusicgenForConditionalGeneration, AutoTokenizer, AutoModelForSeq2SeqLM, T5Tokenizer, T5ForConditionalGeneration
-from diffusers import DiffusionPipeline
+from transformers import AutoProcessor, MusicgenForConditionalGeneration, T5Tokenizer, T5ForConditionalGeneration
 import scipy
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -11,7 +10,6 @@ import gridfs
 import re
 import cohere
 from bson import ObjectId
-import json
 
 load_dotenv(find_dotenv())
 MONGODB_URL = os.getenv("MONGODB_URL")
