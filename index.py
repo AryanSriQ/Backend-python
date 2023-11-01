@@ -1,6 +1,6 @@
 from flask import request, Flask, send_file, jsonify
 from flask_cors import CORS
-from transformers import AutoProcessor, MusicgenForConditionalGeneration, T5Tokenizer, T5ForConditionalGeneration
+from transformers import AutoProcessor, MusicgenForConditionalGeneration, T5Tokenizer, T5ForConditionalGeneration, AutoTokenizer
 import scipy
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -35,10 +35,11 @@ def getdata():
     data = request.get_json()
     prompt = data.get('prompt')
     time = data.get('time')
+    genre = data.get('genre')
 
     processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
     model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
-
+    prompt = prompt + ", genre is  " + genre
     inputs = processor(
         text=[prompt],
         padding=True,
@@ -106,7 +107,7 @@ def all_music():
 def get_music():
     data = request.get_json()
     wav_id = data.get('id')
-    print(wav_id)
+
     try:
         # Access your database and GridFS
         db = client['music']
@@ -146,7 +147,6 @@ def post_data():
 
 @app.route('/translate', methods=['POST'])
 def get_translation():
-
     data = request.get_json()
     prompt = data.get('prompt')
     from_lang = data.get('fromLanguage')
@@ -164,6 +164,28 @@ def get_translation():
     cleaned_text = re.sub(r'<[^>]+>', '', output).lstrip()
     response_data = {
         'output': cleaned_text
+    }
+
+    return jsonify(response_data)
+
+
+@app.route('/grammerly', methods=['POST'])
+def grammerly():
+    data = request.get_json()
+    prompt = data.get('prompt')
+    operation = data.get('operation')
+
+    tokenizer = AutoTokenizer.from_pretrained("grammarly/coedit-large")
+    model = T5ForConditionalGeneration.from_pretrained("grammarly/coedit-large")
+
+    input_text = f'{operation}: {prompt}'
+    input_ids = tokenizer(input_text, return_tensors="pt").input_ids
+
+    outputs = model.generate(input_ids, max_length=256)
+    edited_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    response_data = {
+        'output': edited_text
     }
 
     return jsonify(response_data)
